@@ -1,43 +1,125 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./service/supabaseClient";
 
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Clientes from "./pages/Clientes";
+import Servicios from "./pages/Servicios";
+
+import "./App.css";
+
 function App() {
-  const [servicios, setServicios] = useState([]);
+  const [usuario, setUsuario] = useState(null);
+  const [pagina, setPagina] = useState("dashboard");
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    async function obtenerServicios() {
-      // Consulta directamente a la tabla 'servicios'
-      const { data, error } = await supabase.from("servicios").select("*");
+    obtenerSesion();
 
-      if (error) {
-        console.error("Error al obtener servicios:", error);
-      } else {
-        setServicios(data);
-      }
-      setCargando(false);
-    }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_evento, session) => {
+      setUsuario(session?.user ?? null);
+    });
 
-    obtenerServicios();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  return (
-    <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
-      <h1>Panel de Administración - Citas</h1>
-      <h2>Catálogo de Servicios</h2>
+  async function obtenerSesion() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      {cargando ? (
-        <p>Cargando datos de la base de datos...</p>
-      ) : (
-        <ul>
-          {servicios.map((s) => (
-            <li key={s.id}>
-              <strong>{s.nombre}</strong> - ${s.precio} ({s.duracion_minutos}{" "}
-              min)
-            </li>
-          ))}
-        </ul>
-      )}
+    setUsuario(session?.user ?? null);
+    setCargando(false);
+  }
+
+  async function cerrarSesion() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Error al cerrar sesión:", error);
+      return;
+    }
+
+    setUsuario(null);
+    setPagina("dashboard");
+  }
+
+  function mostrarPagina() {
+    if (pagina === "dashboard") {
+      return <Dashboard />;
+    }
+
+    if (pagina === "clientes") {
+      return <Clientes />;
+    }
+
+    if (pagina === "servicios") {
+      return <Servicios />;
+    }
+
+    return <Dashboard />;
+  }
+
+  if (cargando) {
+    return (
+      <div className="pantalla-carga">
+        <p>Cargando aplicación...</p>
+      </div>
+    );
+  }
+
+  if (!usuario) {
+    return <Login alIniciarSesion={(usuario) => setUsuario(usuario)} />;
+  }
+
+  return (
+    <div className="app">
+      <header className="navbar">
+        <div className="navbar-logo">
+          <h1>Veebo</h1>
+        </div>
+
+        <nav className="navbar-menu">
+          <button
+            className={
+              pagina === "dashboard" ? "boton-nav activo" : "boton-nav"
+            }
+            onClick={() => setPagina("dashboard")}
+          >
+            Inicio
+          </button>
+
+          <button
+            className={pagina === "clientes" ? "boton-nav activo" : "boton-nav"}
+            onClick={() => setPagina("clientes")}
+          >
+            Clientes
+          </button>
+
+          <button
+            className={
+              pagina === "servicios" ? "boton-nav activo" : "boton-nav"
+            }
+            onClick={() => setPagina("servicios")}
+          >
+            Servicios
+          </button>
+
+          <button className="boton-cerrar" onClick={cerrarSesion}>
+            Cerrar sesión
+          </button>
+        </nav>
+      </header>
+
+      <div className="informacion-usuario">
+        Sesión iniciada como: <strong>{usuario.email}</strong>
+      </div>
+
+      <main className="contenido">{mostrarPagina()}</main>
     </div>
   );
 }
